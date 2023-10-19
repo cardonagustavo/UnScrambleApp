@@ -1,50 +1,54 @@
 package com.example.android.unscramble.ui.game
 
+import android.text.Spannable
+import android.text.SpannableString
+import android.text.style.TtsSpan
 import android.util.Log
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.Transformations
 import androidx.lifecycle.ViewModel
 
-/**
- * ViewModel para la pantalla del juego. Gestiona la lógica del juego y la puntuación.
- */
 class GameViewModel : ViewModel() {
-    // Puntuación del jugador
-    private var _score = 0
-    val score: Int
+    private val _score = MutableLiveData(0)
+    val score: LiveData<Int>
         get() = _score
 
-    // Contador de palabras actuales
-    private var _currentWordCount = 0
-    val currentWordCount: Int
+    private val _currentWordCount = MutableLiveData(0)
+    val currentWordCount: LiveData<Int>
         get() = _currentWordCount
 
-    // Palabra actual barajada
-    private lateinit var _currentScrambledWord: String
-    val currentScrambledWord: String
-        get() = _currentScrambledWord
+    private val _currentScrambledWord = MutableLiveData<String>()
+    val currentScrambledWord: LiveData<Spannable> = Transformations.map(_currentScrambledWord) {
+        if (it == null) {
+            SpannableString("")
+        } else {
+            val scrambledWord = it.toString()
+            val spannable: Spannable = SpannableString(scrambledWord)
+            spannable.setSpan(
+                TtsSpan.VerbatimBuilder(scrambledWord).build(),
+                0,
+                scrambledWord.length,
+                Spannable.SPAN_INCLUSIVE_INCLUSIVE
+            )
+            spannable
+        }
+    }
 
-    // Lista de palabras utilizadas en el juego
     private var wordsList: MutableList<String> = mutableListOf()
     private lateinit var currentWord: String
 
-    // Constructor
+    private var isGameOver: Boolean = false
+
+
     init {
-        Log.d("GameFragment", "GameViewModel created!")
         getNextWord()
     }
 
-    // Método llamado cuando se destruye el ViewModel
-    override fun onCleared() {
-        super.onCleared()
-        Log.d("GameFragment", "GameViewModel destroyed!")
-    }
-
-    /**
-     * Obtiene la siguiente palabra para el juego y la baraja.
-     */
     private fun getNextWord() {
-        currentWord = allWordsList.random() // Selecciona una palabra al azar
+        currentWord = allWordsList.random()
         val tempWord = currentWord.toCharArray()
-        tempWord.shuffle() // Baraja las letras de la palabra
+        tempWord.shuffle()
 
         while (String(tempWord).equals(currentWord, false)) {
             tempWord.shuffle()
@@ -52,32 +56,25 @@ class GameViewModel : ViewModel() {
         if (wordsList.contains(currentWord)) {
             getNextWord()
         } else {
-            _currentScrambledWord = String(tempWord) // Palabra barajada
-            ++_currentWordCount // Incrementa el contador de palabras actuales
-            wordsList.add(currentWord) // Agrega la palabra a la lista de palabras utilizadas
+            Log.d("Unscramble", "currentWord= $currentWord")
+            _currentScrambledWord.value = String(tempWord)
+            _currentWordCount.value = _currentWordCount.value?.inc()
+            wordsList.add(currentWord)
         }
     }
 
-    /**
-     * Reinicia los datos del juego, incluida la puntuación y la lista de palabras.
-     */
     fun reinitializeData() {
-        _score = 0
-        _currentWordCount = 0
+        _score.value = 0
+        _currentWordCount.value = 0
         wordsList.clear()
         getNextWord()
+        isGameOver = false
     }
 
-    /**
-     * Aumenta la puntuación del jugador.
-     */
     private fun increaseScore() {
-        _score += SCORE_INCREASE
+        _score.value = _score.value?.plus(SCORE_INCREASE)
     }
 
-    /**
-     * Comprueba si la palabra ingresada por el jugador es correcta y aumenta la puntuación si es correcta.
-     */
     fun isUserWordCorrect(playerWord: String): Boolean {
         if (playerWord.equals(currentWord, true)) {
             increaseScore()
@@ -86,15 +83,15 @@ class GameViewModel : ViewModel() {
         return false
     }
 
-    /**
-     * Obtiene la siguiente palabra para el juego y verifica si el juego ha alcanzado el número máximo de palabras.
-     */
     fun nextWord(): Boolean {
-        return if (_currentWordCount < MAX_NO_OF_WORDS) {
+        return if (_currentWordCount.value!! < MAX_NO_OF_WORDS) {
             getNextWord()
             true
-        } else false
+        } else {
+            isGameOver = true
+            false
+        }
     }
 
-    // Otras funciones y variables pueden agregarse según sea necesario para la lógica del juego.
+    fun isGameOver() = isGameOver
 }
